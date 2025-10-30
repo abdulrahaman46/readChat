@@ -1,0 +1,24 @@
+{
+  "name": "sma-welfare-local",
+  "version": "0.1.0",
+  "description": "SMA Welfare - Offline desktop app (Electron + SQLite)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "init-db": "node init_db.js",
+    "package-win": "electron-packager . \"SMA Welfare System\" --platform=win32 --arch=x64 --out=dist --overwrite",
+    "build-installer": "echo Use electron-builder or NSIS to create installer. See README."
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "electron-store": "^8.1.0",
+    "express": "^5.1.0",
+    "pdfkit": "^0.13.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "electron": "^26.6.10"
+  }
+}

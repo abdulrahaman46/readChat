@@ -1,0 +1,231 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Contributions — SMA Welfare</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="libs/sweetalert2.min.css" />
+    <link rel="stylesheet" href="libs/toastify.min.css" />
+</head>
+<body>
+    <div class="app">
+
+        <div class="sidebar">
+            <img src="../assets/logo.png" style="max-width:140px;margin-bottom:12px" />
+            <div class="brand">SUNYANI MUNICIPAL ASSEMBLY</div>
+            <nav class="side-nav">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="members.html">Members</a>
+                <a href="contributions.html">Contributions</a>
+                <a href="finances.html">Finances</a>
+                <a href="settings.html">Settings</a>
+                <a href="reset-password.html">Reset Password</a>
+                <a href="index.html">Logout</a>
+            </nav>
+        </div>
+
+        <div class="main">
+            <header class="header"><h2>Contributions</h2></header>
+            <main class="container">
+
+                <!-- Record Contribution -->
+                <div class="card">
+                    <h3>Record Contribution</h3>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                        <input id="memberId" placeholder="Member ID" />
+                        <input id="amount" placeholder="Amount" />
+                        <select id="method"><option>cash</option><option>controller</option></select>
+                        <button id="record" class="btn-primary">Record</button>
+                    </div>
+                    <div id="msg" class="muted" style="margin-top:6px"></div>
+                </div>
+
+                <!-- Live Contributions Table -->
+                <div class="card" style="margin-top:12px">
+                    <h3>Recent Contributions</h3>
+                    <table id="contribTable" style="width:100%;border-collapse:collapse;margin-top:8px;">
+                        <thead>
+                            <tr>
+                                <th style="border-bottom:1px solid #ccc;padding:6px;text-align:left">Date</th>
+                                <th style="border-bottom:1px solid #ccc;padding:6px;text-align:left">Member</th>
+                                <th style="border-bottom:1px solid #ccc;padding:6px;text-align:right">Amount (GHS)</th>
+                                <th style="border-bottom:1px solid #ccc;padding:6px;text-align:left">Method</th>
+                                <th style="border-bottom:1px solid #ccc;padding:6px;text-align:left">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contribTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- Reports -->
+                <div class="card" style="margin-top:12px">
+                    <h3>Reports</h3>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                        <input id="fromDateReport" type="date" />
+                        <input id="toDateReport" type="date" />
+                        <button id="exportContribPdf" class="btn-primary">Export Contributions (PDF)</button>
+                        <button id="exportContribCsv" class="btn-ghost">Export Contributions (CSV)</button>
+                    </div>
+                    <div id="contribReportMsg" class="muted" style="margin-top:6px"></div>
+                </div>
+
+            </main>
+        </div>
+
+    </div>
+
+    <script>
+        const db = require('../../lib/db');
+        const fs = require('fs');
+        const path = require('path');
+
+        // Toast helper
+        function toast(msg) {
+            const el = document.createElement('div');
+            el.textContent = msg;
+            el.style.position = 'fixed';
+            el.style.right = '20px';
+            el.style.bottom = '20px';
+            el.style.background = '#083';
+            el.style.color = '#fff';
+            el.style.padding = '10px 14px';
+            el.style.borderRadius = '6px';
+            el.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        // SweetAlert confirm
+        function swalConfirm(title, text) {
+            return new Promise(resolve => {
+                Swal.fire({
+                    title: title,
+                    text: text,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes',
+                    cancelButtonText: 'No'
+                }).then(result => resolve(result.isConfirmed));
+            });
+        }
+
+        // Load contributions table
+        function loadContributions() {
+            db.all(
+                "SELECT c.*, m.full_name FROM contributions c LEFT JOIN members m ON c.member_id = m.id ORDER BY c.date DESC LIMIT 50",
+                [],
+                (err, rows) => {
+                    if (err) return toast('Failed to load contributions');
+                    const tbody = document.getElementById('contribTableBody');
+                    tbody.innerHTML = '';
+                    rows.forEach(r => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+              <td style="padding:4px 6px">${new Date(r.date).toLocaleDateString()}</td>
+              <td style="padding:4px 6px">${r.full_name || '-'}</td>
+              <td style="padding:4px 6px;text-align:right">${Number(r.amount || 0).toFixed(2)}</td>
+              <td style="padding:4px 6px">${r.method || '-'}</td>
+              <td style="padding:4px 6px">${r.status || '-'}</td>
+            `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            );
+        }
+
+        // Record contribution
+        document.getElementById('record').addEventListener('click', () => {
+            const mid = Number(document.getElementById('memberId').value);
+            const amt = Number(document.getElementById('amount').value);
+            const method = document.getElementById('method').value;
+
+            if (!mid || !amt) { document.getElementById('msg').textContent = 'Provide member ID and amount'; return; }
+
+            if (confirm('Record this contribution?')) {
+                db.run(
+                    'INSERT INTO contributions (member_id,amount,date,method,status,created_at) VALUES (?,?,?,?,?,?)',
+                    [mid, amt, Date.now(), method, 'paid', Date.now()],
+                    function (err) {
+                        if (err) { document.getElementById('msg').textContent = 'Failed'; console.error(err); return; }
+                        document.getElementById('msg').textContent = 'Recorded';
+                        loadContributions(); // Refresh table
+                    }
+                );
+            }
+        });
+
+        // Export Contributions PDF
+        document.getElementById('exportContribPdf').addEventListener('click', async () => {
+            const ok = await swalConfirm('Export Contributions', 'Generate PDF for contributions in the selected date range?');
+            if (!ok) return;
+
+            const from = document.getElementById('fromDateReport').value ? Date.parse(document.getElementById('fromDateReport').value) : 0;
+            const to = document.getElementById('toDateReport').value ? Date.parse(document.getElementById('toDateReport').value) + 86400000 : Date.now();
+
+            db.all(
+                "SELECT c.*, m.full_name FROM contributions c LEFT JOIN members m ON c.member_id = m.id WHERE c.date BETWEEN ? AND ? ORDER BY c.date DESC",
+                [from, to],
+                (err, rows) => {
+                    if (err) return toast('Failed to load contributions');
+                    const PDFDocument = require('pdfkit');
+                    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+                    const outPath = path.join(__dirname, '..', 'data', 'reports', `contributions_${Date.now()}.pdf`);
+                    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+                    const stream = fs.createWriteStream(outPath);
+                    doc.pipe(stream);
+
+                    const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
+                    if (fs.existsSync(logoPath)) doc.image(logoPath, 50, 20, { width: 60 });
+                    doc.fontSize(14).text('Sunyani Municipal Assembly - Contributions Report', 130, 30);
+                    doc.moveDown(2);
+
+                    let y = 100, page = 1;
+                    doc.fontSize(10).text('Date', 50, y); doc.text('Member', 120, y); doc.text('Amount', 380, y); doc.text('Method', 450, y); y += 18;
+                    let total = 0;
+                    rows.forEach((r, idx) => {
+                        if (y > 720) { doc.fontSize(9).text('Page ' + page, 50, 760, { align: 'left' }); doc.addPage(); page++; y = 60; }
+                        doc.fontSize(10).text(new Date(r.date).toLocaleDateString(), 50, y);
+                        doc.text(r.full_name || '-', 120, y, { width: 240 });
+                        doc.text(Number(r.amount).toFixed(2), 380, y);
+                        doc.text(r.method || '-', 450, y);
+                        y += 16; total += Number(r.amount || 0);
+                    });
+                    doc.moveDown();
+                    doc.text('Total: GHS ' + total.toFixed(2));
+                    doc.fontSize(9).text('Page ' + page, 50, 760, { align: 'left' });
+                    doc.end();
+                    stream.on('finish', () => { toast('PDF exported: ' + outPath); const { shell } = require('electron'); shell.openPath(outPath); });
+                }
+            );
+        });
+
+        // Export Contributions CSV
+        document.getElementById('exportContribCsv').addEventListener('click', async () => {
+            const ok = await swalConfirm('Export Contributions CSV', 'Export contributions as CSV for selected date range?');
+            if (!ok) return;
+
+            const from = document.getElementById('fromDateReport').value ? Date.parse(document.getElementById('fromDateReport').value) : 0;
+            const to = document.getElementById('toDateReport').value ? Date.parse(document.getElementById('toDateReport').value) + 86400000 : Date.now();
+
+            db.all(
+                "SELECT c.*, m.full_name FROM contributions c LEFT JOIN members m ON c.member_id = m.id WHERE c.date BETWEEN ? AND ? ORDER BY c.date DESC",
+                [from, to],
+                (err, rows) => {
+                    if (err) return toast('Failed to load contributions');
+                    const csv = ['date,member,amount,method,status,notes', ...rows.map(r => `${new Date(r.date).toISOString()},"${(r.full_name || '').replace(/"/g, '""')}",${r.amount},${r.method || ''},${r.status || ''},"${(r.notes || '').replace(/"/g, '""')}"`)].join('\n');
+                    const out = path.join(__dirname, '..', 'data', 'reports', `contributions_${Date.now()}.csv`);
+                    fs.writeFileSync(out, csv);
+                    toast('CSV exported: ' + out);
+                }
+            );
+        });
+
+        // Load contributions table on page load
+        loadContributions();
+    </script>
+
+    <script src="libs/sweetalert2.min.js"></script>
+    <script src="libs/toastify.min.js"></script>
+</body>
+</html>

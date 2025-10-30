@@ -1,0 +1,25 @@
+
+/* White + Gold theme for SMA Welfare System */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Poppins:wght@400;600&display=swap');
+:root{--bg:#ffffff; --panel:#ffffff; --text:#1f2937; --muted:#6b7280; --accent:#b5832b; --accent-strong:#986d1b; --card-shadow: 0 8px 30px rgba(16,24,40,0.06);}
+*{box-sizing:border-box}
+body{font-family:'Roboto', 'Poppins', Arial, sans-serif;background:linear-gradient(180deg,#fbfbfb,#ffffff);color:var(--text);margin:0}
+.app{display:flex;min-height:100vh}
+.sidebar{width:240px;background:var(--accent);color:#fff;padding:20px}
+.sidebar .brand{font-weight:700;margin-bottom:12px;font-size:1.05rem}
+.side-nav{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.side-nav a{color:#fff;text-decoration:none;padding:10px;border-radius:8px;display:block;font-weight:600}
+.side-nav a:hover{background:rgba(255,255,255,0.08)}
+.main{flex:1;overflow:auto;background:var(--bg)}
+.header{padding:18px;border-bottom:1px solid #f1f1f1;background:transparent}
+.container{padding:20px}
+.card{background:var(--panel);border-radius:12px;padding:16px;box-shadow:var(--card-shadow);margin-bottom:12px}
+.center-card{max-width:520px;margin:60px auto;padding:28px;background:var(--panel);border-radius:12px;box-shadow:var(--card-shadow);text-align:center}
+input, select, textarea{display:block;width:100%;padding:10px;margin:8px 0;border-radius:8px;border:1px solid #e6e6e6;font-size:14px}
+button{cursor:pointer}
+.btn-primary{background:var(--accent-strong);color:#fff;padding:10px 14px;border-radius:8px;border:none;font-weight:600}
+.btn-ghost{background:transparent;border:1px solid #ddd;padding:8px 10px;border-radius:8px}
+.muted{color:var(--muted);font-size:0.95rem}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:10px;border-bottom:1px solid #f2f2f2}
+img.logo{max-width:140px}

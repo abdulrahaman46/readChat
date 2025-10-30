@@ -1,0 +1,301 @@
+<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Finances — SMA Welfare</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="libs/sweetalert2.min.css"/>
+<link rel="stylesheet" href="libs/toastify.min.css"/>
+</head><body>
+<div class="app">
+  
+  <div class="sidebar">
+    <img src="../assets/logo.png" style="max-width:140px;margin-bottom:12px"/>
+    <div class="brand">SUNYANI MUNICIPAL ASSEMBLY</div>
+    <nav class="side-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="members.html">Members</a>
+      <a href="contributions.html">Contributions</a>
+      <a href="finances.html">Finances</a>
+      <a href="settings.html">Settings</a>
+      <a href="reset-password.html">Reset Password</a>
+      <a href="index.html">Logout</a>
+    </nav>
+  </div>
+
+  <div class="main">
+    <header class="header"><h2>Finances</h2></header>
+    <main class="container">
+      <div class="card">
+        <h3>System Balance</h3>
+        <div><strong>Current balance (calculated): GHS <span id="sysBalance">0.00</span></strong></div>
+        <div style="margin-top:8px">
+          <label>Record opening balance (month):</label>
+          <input id="openingMonth" type="month" />
+          <input id="openingAmount" placeholder="Amount" />
+          <button id="saveOpening" class="btn-primary">Save Opening</button>
+        </div>
+        <hr/>
+        <h3>Record Spending / Payout</h3>
+        <input id="desc" placeholder="Description"/>
+        <input id="amount" placeholder="Amount"/>
+        <input id="auth" placeholder="Authorized by"/>
+        <select id="spendType"><option value="spending">Spending</option><option value="payout">Payout</option></select>
+        <button id="add" class="btn-primary">Add</button>
+        <div id="msg" class="muted"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>Finance Entries (recent)</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="fromDate" type="date" />
+          <input id="toDate" type="date" />
+          <button id="loadEntries" class="btn-ghost">Load</button>
+          <button id="exportPdf" class="btn-primary">Export PDF</button>
+          <button id="exportCsv" class="btn-ghost">Export CSV</button>
+        </div>
+        <div id="entriesList" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>Backups</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="createBackup" class="btn-primary">Create Backup</button>
+          <select id="backupSelect"></select>
+          <button id="restoreBackup" class="btn-ghost">Restore Selected</button>
+        </div>
+        <div id="backupMsg" class="muted" style="margin-top:8px"></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+const fs = require('fs');
+const path = require('path');
+const db = require('../../lib/db');
+const PDFDocument = require('pdfkit');
+
+function calcSystemBalance(cb) {
+  // system balance = sum(contributions) - sum(spendings+payouts) + latest opening balances as stored in finance_entries type 'opening'
+  db.get("SELECT IFNULL(SUM(amount),0) as totContrib FROM contributions WHERE status='paid'", [], (e,r) => {
+    const contrib = r ? r.totContrib : 0;
+    db.get("SELECT IFNULL(SUM(amount),0) as totOut FROM finance_entries WHERE type IN ('spending','payout')", [], (e2,r2) => {
+      const out = r2 ? r2.totOut : 0;
+      db.get("SELECT IFNULL(SUM(amount),0) as openings FROM finance_entries WHERE type='opening'", [], (e3,r3) => {
+        const openings = r3 ? r3.openings : 0;
+        const bal = (Number(openings) + Number(contrib) - Number(out)) || 0;
+        document.getElementById('sysBalance').textContent = Number(bal).toFixed(2);
+        if (cb) cb(bal);
+      });
+    });
+  });
+}
+
+document.getElementById('add').addEventListener('click', () => {
+  const desc = document.getElementById('desc').value;
+  const amt = Number(document.getElementById('amount').value);
+  const auth = document.getElementById('auth').value;
+  const type = document.getElementById('spendType').value;
+  if (!desc || !amt) { document.getElementById('msg').textContent='Provide description and amount'; return; }
+  db.run('INSERT INTO finance_entries (type,amount,date,description,authorized_by,created_at) VALUES (?,?,?,?,?,?)',
+    [type, amt, Date.now(), desc, auth, Date.now()], function(err){
+      if (err) { document.getElementById('msg').textContent='Failed'; console.error(err); return; }
+      // create audit log
+      db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+        [localStorage.getItem('adminId')||0, 'finance_add', JSON.stringify({type,amt,desc,auth}), Date.now()]);
+      document.getElementById('msg').textContent='Recorded';
+      calcSystemBalance();
+      loadEntries();
+    });
+});
+
+document.getElementById('saveOpening').addEventListener('click', () => {
+  const month = document.getElementById('openingMonth').value;
+  const amt = Number(document.getElementById('openingAmount').value);
+  if (!month || !amt) { alert('Select month and amount'); return; }
+  db.run('INSERT INTO finance_entries (type,amount,date,description,authorized_by,created_at) VALUES (?,?,?,?,?,?)',
+    ['opening', amt, Date.parse(month + '-01'), 'Opening balance for ' + month, localStorage.getItem('adminId')||0, Date.now()], function(err){
+      if (err) return alert('Failed to save opening');
+      db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+        [localStorage.getItem('adminId')||0, 'opening_balance', JSON.stringify({month,amt}), Date.now()]);
+      alert('Opening saved');
+      calcSystemBalance();
+    });
+});
+
+function loadEntries() {
+  const from = document.getElementById('fromDate').value ? Date.parse(document.getElementById('fromDate').value) : 0;
+  const to = document.getElementById('toDate').value ? Date.parse(document.getElementById('toDate').value) + 86400000 : Date.now();
+  db.all("SELECT * FROM finance_entries WHERE date BETWEEN ? AND ? ORDER BY date DESC LIMIT 500", [from,to], (err, rows) => {
+    if (err) { document.getElementById('entriesList').innerHTML='Failed to load'; return; }
+    const html = rows.map(r => `<div style="padding:8px;border-bottom:1px solid #eee"><strong>${r.type}</strong> — GHS ${Number(r.amount).toFixed(2)} — ${new Date(r.date).toLocaleDateString()}<div class="muted">${r.description || ''} | Authorized: ${r.authorized_by || ''}</div></div>`).join('');
+    document.getElementById('entriesList').innerHTML = html || '<div class="muted">No entries</div>';
+  });
+}
+
+document.getElementById('loadEntries').addEventListener('click', loadEntries);
+document.getElementById('exportCsv').addEventListener('click', () => { if(!confirmAction('Export finance entries to CSV?')) return; 
+  const from = document.getElementById('fromDate').value ? Date.parse(document.getElementById('fromDate').value) : 0;
+  const to = document.getElementById('toDate').value ? Date.parse(document.getElementById('toDate').value) + 86400000 : Date.now();
+  db.all("SELECT * FROM finance_entries WHERE date BETWEEN ? AND ? ORDER BY date DESC", [from,to], (err, rows) => {
+    if (err) return alert('Failed to export');
+    const csv = ['type,date,amount,description,authorized_by', ...rows.map(r=>`${r.type},${new Date(r.date).toISOString()},${r.amount},"${(r.description||'').replace(/"/g,'""')}",${r.authorized_by||''}`)].join('\n');
+    const out = path.join(__dirname, '..', 'data', 'reports', `finance_export_${Date.now()}.csv`);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, csv);
+    db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+      [localStorage.getItem('adminId')||0, 'export_finance_csv', JSON.stringify({out}), Date.now()]);
+    alert('CSV exported: ' + out);
+  });
+});
+
+document.getElementById('exportPdf').addEventListener('click', () => { if(!confirmAction('Export finance entries to PDF?')) return; 
+  const from = document.getElementById('fromDate').value ? Date.parse(document.getElementById('fromDate').value) : 0;
+  const to = document.getElementById('toDate').value ? Date.parse(document.getElementById('toDate').value) + 86400000 : Date.now();
+  db.all("SELECT * FROM finance_entries WHERE date BETWEEN ? AND ? ORDER BY date DESC", [from,to], (err, rows) => {
+    if (err) return alert('Failed to export');
+    const doc = new PDFDocument({margin:40});
+    const outPath = path.join(__dirname, '..', 'data', 'reports', `finance_report_${Date.now()}.pdf`);
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    doc.pipe(fs.createWriteStream(outPath));
+    const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
+    if (fs.existsSync(logoPath)) doc.image(logoPath, {width:100});
+    doc.moveDown();
+    doc.fontSize(14).text('Finance Report', {align:'center'});
+    doc.moveDown();
+    rows.forEach(r => {
+      doc.fontSize(11).text(`${new Date(r.date).toLocaleDateString()} — ${r.type.toUpperCase()} — GHS ${Number(r.amount).toFixed(2)} — ${r.description || ''}`);
+      doc.moveDown(0.2);
+    });
+    doc.end();
+    const { shell } = require('electron');
+    stream.on('finish', ()=>{
+      // open the generated PDF for print preview
+      try { shell.openPath(outPath); } catch(e){}
+    });
+    db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+      [localStorage.getItem('adminId')||0, 'export_finance_pdf', JSON.stringify({outPath}), Date.now()]);
+    alert('PDF exported: ' + outPath);
+  });
+});
+
+// Backups: create folder copy of welfare.db and images and reports
+function listBackups() {
+  const backupsDir = path.join(__dirname, '..', 'data', 'backups');
+  fs.mkdirSync(backupsDir, { recursive: true });
+  const items = fs.readdirSync(backupsDir).filter(x=>fs.statSync(path.join(backupsDir,x)).isDirectory());
+  const sel = document.getElementById('backupSelect');
+  sel.innerHTML = items.map(i=>`<option value="${i}">${i}</option>`).join('');
+}
+document.getElementById('createBackup').addEventListener('click', () => { if(!confirmAction('Create a backup now?')) return; 
+  const backupsDir = path.join(__dirname, '..', 'data', 'backups');
+  fs.mkdirSync(backupsDir, { recursive: true });
+  const name = 'backup_' + Date.now();
+  const dest = path.join(backupsDir, name);
+  fs.mkdirSync(dest);
+  // copy welfare.db
+  try {
+    const srcDb = path.join(__dirname, '..', 'data', 'welfare.db');
+    if (fs.existsSync(srcDb)) fs.copyFileSync(srcDb, path.join(dest, 'welfare.db'));
+    // copy images directory
+    const srcImages = path.join(__dirname, '..', 'data', 'images');
+    if (fs.existsSync(srcImages)) {
+      const destImages = path.join(dest, 'images');
+      fs.mkdirSync(destImages);
+      // recursive copy simple
+      function copyDir(src, dst) {
+        fs.readdirSync(src).forEach(f => {
+          const s = path.join(src,f); const d = path.join(dst,f);
+          if (fs.statSync(s).isDirectory()) { fs.mkdirSync(d); copyDir(s,d); } else { fs.copyFileSync(s,d); }
+        });
+      }
+      copyDir(srcImages, destImages);
+    }
+    document.getElementById('backupMsg').textContent = 'Backup created: ' + name;
+    listBackups();
+    db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+      [localStorage.getItem('adminId')||0, 'backup_create', JSON.stringify({name}), Date.now()]);
+  } catch (err) { document.getElementById('backupMsg').textContent = 'Backup failed: ' + err.message; }
+});
+
+document.getElementById('restoreBackup').addEventListener('click', () => { if(!confirmAction('Restoring will replace current data. Continue?')) return; 
+  const sel = document.getElementById('backupSelect'); const v = sel.value;
+  if (!v) return alert('Select backup');
+  const src = path.join(__dirname, '..', 'data', 'backups', v);
+  try {
+    // restore welfare.db
+    const srcDb = path.join(src, 'welfare.db');
+    const dstDb = path.join(__dirname, '..', 'data', 'welfare.db');
+    if (fs.existsSync(srcDb)) fs.copyFileSync(srcDb, dstDb);
+    // restore images
+    const srcImages = path.join(src, 'images');
+    const dstImages = path.join(__dirname, '..', 'data', 'images');
+    if (fs.existsSync(srcImages)) {
+      // remove existing images and copy
+      function rmDir(dir) { if (!fs.existsSync(dir)) return; fs.readdirSync(dir).forEach(f=>{ const p=path.join(dir,f); if (fs.statSync(p).isDirectory()) rmDir(p); else fs.unlinkSync(p); }); fs.rmdirSync(dir); }
+      rmDir(dstImages);
+      fs.mkdirSync(dstImages, { recursive: true });
+      function copyDir(src, dst) { fs.readdirSync(src).forEach(f => { const s = path.join(src,f); const d = path.join(dst,f); if (fs.statSync(s).isDirectory()) { fs.mkdirSync(d); copyDir(s,d); } else { fs.copyFileSync(s,d); } }); }
+      copyDir(srcImages, dstImages);
+    }
+    document.getElementById('backupMsg').textContent = 'Restored backup: ' + v;
+    db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+      [localStorage.getItem('adminId')||0, 'backup_restore', JSON.stringify({v}), Date.now()]);
+    alert('Restore complete. Restart the app to load restored DB.');
+  } catch (err) { document.getElementById('backupMsg').textContent = 'Restore failed: ' + err.message; }
+});
+
+// Auto-carryover opening balance if new month
+function autoCarryoverOpening() {
+  // find the latest opening entry
+  db.get("SELECT * FROM finance_entries WHERE type='opening' ORDER BY date DESC LIMIT 1", [], (err, row) => {
+    const now = new Date();
+    const thisMonth = now.getFullYear() + '-' + (now.getMonth()+1);
+    if (!row) {
+      // no opening exists - create one from current calculated balance
+      calcSystemBalance((bal)=>{
+        db.run('INSERT INTO finance_entries (type,amount,date,description,authorized_by,created_at) VALUES (?,?,?,?,?,?)',
+          ['opening', bal, Date.now(), 'Auto opening created', localStorage.getItem('adminId')||0, Date.now()]);
+      });
+      return;
+    }
+    const lastMonth = new Date(row.date);
+    const lastMonthKey = lastMonth.getFullYear() + '-' + (lastMonth.getMonth()+1);
+    if (lastMonthKey !== thisMonth) {
+      // create new opening using current system balance as carryover
+      calcSystemBalance((bal)=>{
+        db.run('INSERT INTO finance_entries (type,amount,date,description,authorized_by,created_at) VALUES (?,?,?,?,?,?)',
+          ['opening', bal, Date.parse(thisMonth + '-01'), 'Auto carryover opening for ' + thisMonth, localStorage.getItem('adminId')||0, Date.now()], function(err){
+            if (!err) {
+              db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+                [localStorage.getItem('adminId')||0, 'auto_opening', JSON.stringify({month:thisMonth,amount:bal}), Date.now()]);
+            }
+            calcSystemBalance();
+          });
+      });
+    }
+  });
+}
+
+calcSystemBalance();
+listBackups();
+loadEntries();
+autoCarryoverOpening();
+
+</script>
+
+<script>
+function confirmAction(msg) {
+  return confirm(msg || 'Are you sure?');
+}
+function toast(msg) {
+  // simple toast
+  const el = document.createElement('div');
+  el.textContent = msg; el.style.position='fixed'; el.style.right='20px'; el.style.bottom='20px';
+  el.style.background='#083'; el.style.color='#fff'; el.style.padding='10px 14px'; el.style.borderRadius='6px'; el.style.boxShadow='0 6px 18px rgba(0,0,0,0.12)';
+  document.body.appendChild(el);
+  setTimeout(()=> el.remove(), 3000);
+}
+</script>
+
+<script src="libs/sweetalert2.min.js"></script>
+<script src="libs/toastify.min.js"></script>
+<script src="js/ui.js"></script>
+</body></html>

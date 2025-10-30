@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="libs/sweetalert2.min.css" />
+    <link rel="stylesheet" href="libs/toastify.min.css" />
+</head>
+<body>
+    <div class="app">
+
+        <div class="sidebar">
+            <img src="../assets/logo.png" style="max-width:140px;margin-bottom:12px" />
+            <div class="brand">SUNYANI MUNICIPAL ASSEMBLY</div>
+            <nav class="side-nav">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="members.html">Members</a>
+                <a href="contributions.html">Contributions</a>
+                <a href="finances.html">Finances</a>
+                <a href="settings.html">Settings</a>
+                <a href="reset-password.html">Reset Password</a>
+                <a href="index.html">Logout</a>
+            </nav>
+        </div>
+
+        <nav>
+            <a href="members.html">Members</a><br>
+            <a href="contributions.html">Contributions</a><br>
+            <a href="finances.html">Finances</a><br>
+            <a href="index.html">Logout</a>
+        </nav>
+    </div>
+    <div class="main">
+        <header class="header"><h2>Dashboard</h2></header>
+        <main class="container">
+            <div class="card">
+                <h3>Quick actions</h3>
+                <button onclick="location.href='members.html'">Manage Members</button>
+                <button onclick="location.href='contributions.html'">Record Contributions</button>
+            </div>
+        </main>
+    </div>
+    </div>
+
+    <script>
+        function confirmAction(msg) {
+            return confirm(msg || 'Are you sure?');
+        }
+        function toast(msg) {
+            // simple toast
+            const el = document.createElement('div');
+            el.textContent = msg; el.style.position = 'fixed'; el.style.right = '20px'; el.style.bottom = '20px';
+            el.style.background = '#083'; el.style.color = '#fff'; el.style.padding = '10px 14px'; el.style.borderRadius = '6px'; el.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+    </script>
+
+    <script src="libs/sweetalert2.min.js"></script>
+    <script src="libs/toastify.min.js"></script>
+    <script src="js/ui.js"></script>
+</body>
+</html>

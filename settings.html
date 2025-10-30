@@ -1,0 +1,106 @@
+<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Settings — SMA Welfare</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="libs/sweetalert2.min.css"/>
+<link rel="stylesheet" href="libs/toastify.min.css"/>
+</head><body>
+<div class="app">
+  
+  <div class="sidebar">
+    <img src="../assets/logo.png" style="max-width:140px;margin-bottom:12px"/>
+    <div class="brand">SUNYANI MUNICIPAL ASSEMBLY</div>
+    <nav class="side-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="members.html">Members</a>
+      <a href="contributions.html">Contributions</a>
+      <a href="finances.html">Finances</a>
+      <a href="settings.html">Settings</a>
+      <a href="reset-password.html">Reset Password</a>
+      <a href="index.html">Logout</a>
+    </nav>
+  </div>
+
+  <div class="main">
+    <header class="header"><h2>Settings</h2></header>
+    <main class="container">
+      <div class="card">
+        <h3>Secret key (for password reset)</h3>
+        <input id="secretKey" placeholder="Enter secret key (admin only)"/>
+        <button id="saveKey" class="btn-primary">Save Secret Key</button>
+        <div id="keyMsg" class="muted"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>Create Admin</h3>
+        <input id="newAdminEmail" placeholder="Email" />
+        <input id="newAdminName" placeholder="Name" />
+        <input id="newAdminPass" placeholder="Password" type="password" />
+        <button id="createAdmin" class="btn-primary">Create Admin</button>
+        <div id="adminMsg" class="muted"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <h3>Audit logs (recent)</h3>
+        <div id="logs"></div>
+      </div>
+    </main>
+  </div>
+</div>
+<script>
+const db = require('../../lib/db');
+const bcrypt = require('bcryptjs');
+
+document.getElementById('saveKey').addEventListener('click', () => {
+  const key = document.getElementById('secretKey').value.trim();
+  if (!key) return document.getElementById('keyMsg').textContent='Enter a secret key';
+  const hash = bcrypt.hashSync(key, 10);
+  const adminId = localStorage.getItem('adminId') || 0;
+  db.run('UPDATE admins SET secret_key=? WHERE id=?', [hash, adminId], function(err){
+    if (err) return document.getElementById('keyMsg').textContent='Failed to save';
+    document.getElementById('keyMsg').textContent='Secret saved for admin ID ' + adminId;
+    db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+      [adminId, 'set_secret_key', JSON.stringify({adminId}), Date.now()]);
+  });
+});
+
+document.getElementById('createAdmin').addEventListener('click', () => {
+  const email = document.getElementById('newAdminEmail').value.trim();
+  const name = document.getElementById('newAdminName').value.trim();
+  const pass = document.getElementById('newAdminPass').value;
+  if (!email || !pass) return document.getElementById('adminMsg').textContent='Email and password required';
+  const hash = bcrypt.hashSync(pass, 10);
+  db.run('INSERT INTO admins (email,password_hash,name,role,force_password_change,created_at) VALUES (?,?,?,?,?,?)',
+    [email, hash, name, 'assistant', 0, Date.now()], function(err){
+      if (err) return document.getElementById('adminMsg').textContent='Failed to create admin: ' + err.message;
+      document.getElementById('adminMsg').textContent='Admin created';
+      db.run('INSERT INTO audit_logs (admin_id,action,details,timestamp) VALUES (?,?,?,?)',
+        [localStorage.getItem('adminId')||0, 'create_admin', JSON.stringify({email,name}), Date.now()]);
+  });
+});
+
+function loadLogs() {
+  db.all('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 200', [], (err, rows) => {
+    const el = document.getElementById('logs');
+    if (err) return el.innerHTML='Failed to load logs';
+    el.innerHTML = rows.map(r=>`<div style="padding:8px;border-bottom:1px solid #eee"><div class="muted">${new Date(r.timestamp).toLocaleString()}</div><div><strong>${r.action}</strong> — ${r.details}</div></div>`).join('');
+  });
+}
+loadLogs();
+</script>
+
+<script>
+function confirmAction(msg) {
+  return confirm(msg || 'Are you sure?');
+}
+function toast(msg) {
+  // simple toast
+  const el = document.createElement('div');
+  el.textContent = msg; el.style.position='fixed'; el.style.right='20px'; el.style.bottom='20px';
+  el.style.background='#083'; el.style.color='#fff'; el.style.padding='10px 14px'; el.style.borderRadius='6px'; el.style.boxShadow='0 6px 18px rgba(0,0,0,0.12)';
+  document.body.appendChild(el);
+  setTimeout(()=> el.remove(), 3000);
+}
+</script>
+
+<script src="libs/sweetalert2.min.js"></script>
+<script src="libs/toastify.min.js"></script>
+<script src="js/ui.js"></script>
+</body></html>

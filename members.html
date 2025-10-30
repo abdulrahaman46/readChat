@@ -1,0 +1,436 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Members — SMA Welfare</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="libs/sweetalert2.min.css" />
+    <link rel="stylesheet" href="libs/toastify.min.css" />
+</head>
+<body>
+    <div class="app">
+
+        <div class="sidebar">
+            <img src="../assets/logo.png" style="max-width:140px;margin-bottom:12px" />
+            <div class="brand">SUNYANI MUNICIPAL ASSEMBLY</div>
+            <nav class="side-nav">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="members.html">Members</a>
+                <a href="contributions.html">Contributions</a>
+                <a href="finances.html">Finances</a>
+                <a href="settings.html">Settings</a>
+                <a href="reset-password.html">Reset Password</a>
+                <a href="index.html">Logout</a>
+            </nav>
+        </div>
+
+        <nav><a href="dashboard.html">Dashboard</a></nav>
+    </div>
+    <div class="main">
+        <header class="header"><h2>Members</h2></header>
+        <main class="container">
+            <div class="card">
+                <h3>Register Member</h3>
+                <div style="display:flex;gap:12px">
+                    <div style="flex:1">
+                        <div style="display:flex;gap:8px">
+                            <input id="title" placeholder="Title (Mr./Mrs.)" style="flex:1" />
+                            <select id="gender" style="width:140px"><option>Male</option><option>Female</option><option>Other</option></select>
+                        </div>
+                        <input id="full_name" placeholder="Full name" />
+                        <div style="display:flex;gap:8px">
+                            <input id="phone" placeholder="Phone" />
+                            <input id="email" placeholder="Email" />
+                        </div>
+                        <input id="address" placeholder="Address" />
+                        <div style="display:flex;gap:8px">
+                            <input id="hometown" placeholder="Hometown" />
+                            <input id="place_of_birth" placeholder="Place of birth" />
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <input id="dob" type="date" />
+                            <input id="permanent_address" placeholder="Permanent home address" />
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <input id="staff_id" placeholder="Staff ID" />
+                            <input id="department" placeholder="Department / Unit" />
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <select id="pay_mode"><option value="cash">Cash</option><option value="controller">Controller (salary)</option></select>
+                            <select id="id_type"><option value="passport">Passport</option><option value="national">National ID</option><option value="voter">Voter ID</option><option value="driver">Driver's licence</option></select>
+                            <input id="id_number" placeholder="ID number" />
+                        </div>
+                        <div style="display:flex;gap:8px">
+                            <input id="spouse_name" placeholder="Spouse name (if any)" />
+                            <select id="marital"><option>Single</option><option>Married</option><option>Divorced</option><option>Widowed</option></select>
+                        </div>
+                        <div style="margin-top:8px">
+                            <label>Next of kin</label>
+                            <div style="display:flex;gap:8px">
+                                <input id="nok_name" placeholder="Name" />
+                                <input id="nok_rel" placeholder="Relationship" />
+                                <input id="nok_contact" placeholder="Contact" />
+                            </div>
+                        </div>
+                        <div style="margin-top:8px">
+                            <label>Parents</label>
+                            <div style="display:flex;gap:8px">
+                                <input id="father_name" placeholder="Father's name" />
+                                <label style="align-self:center"><input id="father_alive" type="checkbox" /> Father alive</label>
+                            </div>
+                            <div style="display:flex;gap:8px;margin-top:6px">
+                                <input id="mother_name" placeholder="Mother's name" />
+                                <label style="align-self:center"><input id="mother_alive" type="checkbox" /> Mother alive</label>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px">
+                            <label>Children (click Add to append)</label>
+                            <div id="childrenList"></div>
+                            <button id="addChild" type="button" class="btn-primary" style="margin-top:6px">Add child</button>
+                        </div>
+                        <div style="margin-top:8px">
+                            <label><input id="consent" type="checkbox" /> I confirm that the information provided is accurate.</label>
+                        </div>
+                    </div>
+                    <div style="width:300px">
+                        <label>Passport-size photo</label><input id="passport" type="file" accept="image/*" />
+                        <img id="pprev" style="max-width:260px;margin-top:8px;display:block" />
+                        <label style="margin-top:8px">Selfie photo</label><input id="selfie" type="file" accept="image/*" />
+                        <img id="sprev" style="max-width:260px;margin-top:8px;display:block" />
+                    </div>
+                </div>
+
+                <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+                    <button id="save" class="btn-primary">Save Member</button>
+                    <button id="print" class="btn-primary">Print Registration Form (PDF)</button>
+                    <button id="exportCsv" class="btn-ghost">Export CSV</button> <button id="exportPdf" class="btn-ghost">Export Member List (PDF)</button>
+                    <div id="msg" class="muted"></div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:12px">
+                <h3>Members List</h3>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <input id="search" placeholder="Search by name, staff id or phone" style="flex:1" />
+                    <button id="refresh" class="btn-ghost">Refresh</button>
+                    <button id="bulkMarkPaid" class="btn-primary">Mark Selected Paid</button>
+                    <button id="bulkMarkUnpaid" class="btn-ghost">Mark Selected Unpaid</button>
+                </div>
+                <div id="list" style="margin-top:8px"></div>
+            </div>
+        </main>
+    </div>
+    </div>
+
+    <script>
+        const fs = require('fs');
+        const path = require('path');
+        const db = require('../../lib/db');
+        const PDFDocument = require('pdfkit');
+
+        // Ensure 'debt' column exists (safe to run multiple times)
+        function ensureDebtColumn(cb) {
+            db.get("PRAGMA table_info(members);", [], (err, row) => {
+                // We'll attempt to add column and ignore error if exists
+                db.run("ALTER TABLE members ADD COLUMN debt REAL DEFAULT 0", [], err => { cb(); });
+            });
+        }
+        ensureDebtColumn(() => { });
+
+        // Children UI
+        document.getElementById('addChild').addEventListener('click', () => {
+            const div = document.createElement('div');
+            div.style.display = 'flex'; div.style.gap = '8px'; div.style.marginTop = '6px';
+            div.innerHTML = `<input class="child_name" placeholder="Child name"/><input class="child_dob" type="date"/><button type="button" class="removeChild btn-ghost">Remove</button>`;
+            document.getElementById('childrenList').appendChild(div);
+            div.querySelector('.removeChild').addEventListener('click', () => div.remove());
+        });
+
+        // image previews
+        function preview(input, imgEl) {
+            const f = input.files && input.files[0];
+            if (!f) { imgEl.style.display = 'none'; imgEl.src = ''; return; }
+            const reader = new FileReader();
+            reader.onload = e => { imgEl.src = e.target.result; imgEl.style.display = 'block'; };
+            reader.readAsDataURL(f);
+        }
+        document.getElementById('passport').addEventListener('change', () => preview(document.getElementById('passport'), document.getElementById('pprev')));
+        document.getElementById('selfie').addEventListener('change', () => preview(document.getElementById('selfie'), document.getElementById('sprev')));
+
+        // helper to save image from input to data/images/members/
+        function saveImageFromInput(inputEl, memberId, kind) {
+            return new Promise((res, rej) => {
+                const f = inputEl.files[0];
+                if (!f) return res(null);
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    const buffer = Buffer.from(base64, 'base64');
+                    const imagesDir = path.join(__dirname, '..', 'data', 'images', 'members');
+                    fs.mkdirSync(imagesDir, { recursive: true });
+                    const filename = memberId + '_' + kind + '_' + Date.now() + '.jpg';
+                    const p = path.join(imagesDir, filename);
+                    fs.writeFileSync(p, buffer);
+                    res(p);
+                };
+                reader.onerror = rej;
+                reader.readAsDataURL(f);
+            });
+        }
+
+        // save member
+        document.getElementById('save').addEventListener('click', () => {
+            if (!document.getElementById('consent').checked) { document.getElementById('msg').textContent = 'Consent required'; return; }
+            const children = Array.from(document.querySelectorAll('.child_name')).map((el, i) => ({ name: el.value, dob: document.querySelectorAll('.child_dob')[i].value })).filter(c => c.name);
+            const member = {
+                title: document.getElementById('title').value,
+                gender: document.getElementById('gender').value,
+                full_name: document.getElementById('full_name').value,
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value,
+                address: document.getElementById('address').value,
+                hometown: document.getElementById('hometown').value,
+                place_of_birth: document.getElementById('place_of_birth').value,
+                permanent_address: document.getElementById('permanent_address').value,
+                dob: document.getElementById('dob').value,
+                staff_id: document.getElementById('staff_id').value,
+                department: document.getElementById('department').value,
+                pay_mode: document.getElementById('pay_mode').value,
+                id_type: document.getElementById('id_type').value,
+                id_number: document.getElementById('id_number').value,
+                spouse_name: document.getElementById('spouse_name').value,
+                marital_status: document.getElementById('marital').value,
+                nok_name: document.getElementById('nok_name').value,
+                nok_relationship: document.getElementById('nok_rel').value,
+                nok_contact: document.getElementById('nok_contact').value,
+                father_name: document.getElementById('father_name').value,
+                father_alive: document.getElementById('father_alive').checked ? 1 : 0,
+                mother_name: document.getElementById('mother_name').value,
+                mother_alive: document.getElementById('mother_alive').checked ? 1 : 0,
+                consent: 1,
+                children: JSON.stringify(children),
+                created_at: Date.now()
+            };
+            db.run(`INSERT INTO members (title,gender,full_name,phone,email,address,hometown,place_of_birth,permanent_address,dob,staff_id,department,pay_mode,id_type,id_number,spouse_name,marital_status,nok_name,nok_relationship,nok_contact,father_name,mother_name,consent,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [member.title, member.gender, member.full_name, member.phone, member.email, member.address, member.hometown, member.place_of_birth, member.permanent_address, member.dob, member.staff_id, member.department, member.pay_mode, member.id_type, member.id_number, member.spouse_name, member.marital_status, member.nok_name, member.nok_relationship, member.nok_contact, member.father_name, member.mother_name, member.consent, member.created_at],
+                function (err) {
+                    if (err) { document.getElementById('msg').textContent = 'Failed to save'; console.error(err); return; }
+                    const id = this.lastID;
+                    Promise.all([saveImageFromInput(document.getElementById('passport'), id, 'passport'), saveImageFromInput(document.getElementById('selfie'), id, 'selfie')])
+                        .then(paths => {
+                            const passportPath = paths[0]; const selfiePath = paths[1];
+                            db.run('UPDATE members SET passport_photo_path=?, selfie_photo_path=? WHERE id=?', [passportPath, selfiePath, id], () => {
+                                // insert children rows
+                                const chStmt = db.prepare('INSERT INTO children (member_id,name,dob) VALUES (?,?,?)');
+                                children.forEach(c => chStmt.run(id, c.name, c.dob));
+                                chStmt.finalize();
+                                document.getElementById('msg').textContent = 'Saved member ID ' + id;
+                                loadList();
+                            });
+                        });
+                });
+        });
+
+        // printing registration form (PDF)
+        document.getElementById('print').addEventListener('click', () => {
+            const name = document.getElementById('full_name').value || '________________';
+            const doc = new PDFDocument({ margin: 40 });
+            const outPath = path.join(__dirname, '..', 'data', 'reports', `member_form_${Date.now()}.pdf`);
+            fs.mkdirSync(path.dirname(outPath), { recursive: true });
+            const stream = fs.createWriteStream(outPath);
+            doc.pipe(stream);
+            const logoPath = path.join(__dirname, '..', 'assets', 'logo.png');
+            if (fs.existsSync(logoPath)) doc.image(logoPath, { width: 100 });
+            doc.moveDown();
+            doc.fontSize(14).text('SUNYANI MUNICIPAL ASSEMBLY - MEMBER REGISTRATION FORM', { align: 'center' });
+            doc.moveDown();
+            // print key fields
+            const fields = [
+                ['Full name', document.getElementById('full_name').value],
+                ['Title', document.getElementById('title').value],
+                ['Gender', document.getElementById('gender').value],
+                ['Phone', document.getElementById('phone').value],
+                ['Email', document.getElementById('email').value],
+                ['Staff ID', document.getElementById('staff_id').value],
+                ['Department', document.getElementById('department').value],
+                ['Hometown', document.getElementById('hometown').value],
+                ['DOB', document.getElementById('dob').value],
+                ['ID', document.getElementById('id_type').value + ' / ' + document.getElementById('id_number').value],
+                ['Spouse', document.getElementById('spouse_name').value || '-'],
+                ['Next of kin', document.getElementById('nok_name').value + ' (' + document.getElementById('nok_rel').value + ') - ' + document.getElementById('nok_contact').value]
+            ];
+            fields.forEach(f => { doc.fontSize(11).text(f[0] + ': ' + (f[1] || '-')); doc.moveDown(0.2); });
+            doc.moveDown();
+            doc.text('Date: ' + (new Date()).toLocaleDateString());
+            doc.moveDown(2);
+            doc.text('Full name: _______________________________________________');
+            doc.moveDown();
+            doc.text('Signature: _______________________________________________');
+            doc.end();
+            stream.on('finish', () => { const { shell } = require('electron'); try { shell.openPath(outPath); } catch (e) { } });
+        });
+
+        // List and bulk operations
+        function loadList(q = '') {
+            const list = document.getElementById('list');
+            const term = q.toLowerCase() || '';
+            db.all("SELECT id, full_name, staff_id, phone, passport_photo_path, debt FROM members ORDER BY full_name LIMIT 500", [], (err, rows) => {
+                if (err) { list.innerHTML = 'Failed to load'; console.error(err); return; }
+                const html = rows.map(r => `<div style="display:flex;align-items:center;gap:10px;padding:8px;border-bottom:1px solid #eee">
+          <input type="checkbox" class="selectMember" data-id="${r.id}" />
+          <div style="width:48px;height:48px;background:#f1f1f1"><img src="${r.passport_photo_path ? '../' + r.passport_photo_path.replace(/\\/g, '/') : ''}" style="max-width:48px;max-height:48px"/></div>
+          <div style="flex:1"><strong>${r.full_name}</strong><div class="muted">${r.staff_id || ''} • ${r.phone || ''}</div></div>
+          <div style="width:120px;text-align:right"><strong>GHS ${Number(r.debt || 0).toFixed(2)}</strong></div>
+          <div><button class="viewBtn btn-ghost" data-id="${r.id}">View</button></div>
+        </div>`).join('');
+                list.innerHTML = html || '<div class="muted">No members.</div>';
+                document.querySelectorAll('.viewBtn').forEach(b => b.addEventListener('click', e => viewMember(e.target.dataset.id)));
+            });
+        }
+
+        function viewMember(id) {
+            db.get("SELECT * FROM members WHERE id=?", [id], (err, m) => {
+                if (err || !m) return alert('Not found');
+                // populate form for editing
+                document.getElementById('title').value = m.title || '';
+                document.getElementById('gender').value = m.gender || '';
+                document.getElementById('full_name').value = m.full_name || '';
+                document.getElementById('phone').value = m.phone || '';
+                document.getElementById('email').value = m.email || '';
+                document.getElementById('address').value = m.address || '';
+                document.getElementById('hometown').value = m.hometown || '';
+                document.getElementById('place_of_birth').value = m.place_of_birth || '';
+                document.getElementById('permanent_address').value = m.permanent_address || '';
+                document.getElementById('dob').value = m.dob || '';
+                document.getElementById('staff_id').value = m.staff_id || '';
+                document.getElementById('department').value = m.department || '';
+                document.getElementById('pay_mode').value = m.pay_mode || 'cash';
+                document.getElementById('id_type').value = m.id_type || 'passport';
+                document.getElementById('id_number').value = m.id_number || '';
+                document.getElementById('spouse_name').value = m.spouse_name || '';
+                document.getElementById('marital').value = m.marital_status || 'Single';
+                document.getElementById('nok_name').value = m.nok_name || '';
+                document.getElementById('nok_rel').value = m.nok_relationship || '';
+                document.getElementById('nok_contact').value = m.nok_contact || '';
+                document.getElementById('father_name').value = m.father_name || '';
+                document.getElementById('mother_name').value = m.mother_name || '';
+                if (m.passport_photo_path && fs.existsSync(path.join(__dirname, '..', m.passport_photo_path))) document.getElementById('pprev').src = path.join(__dirname, '..', m.passport_photo_path);
+                if (m.selfie_photo_path && fs.existsSync(path.join(__dirname, '..', m.selfie_photo_path))) document.getElementById('sprev').src = path.join(__dirname, '..', m.selfie_photo_path);
+            });
+        }
+
+        // bulk mark paid/unpaid
+        function getSelectedIds() {
+            return Array.from(document.querySelectorAll('.selectMember:checked')).map(i => Number(i.dataset.id));
+        }
+
+        document.getElementById('bulkMarkPaid').addEventListener('click', async () => {
+            if (!confirmAction('Mark selected members as PAID?')) return;
+            const ids = getSelectedIds();
+            if (!ids.length) return alert('Select members first');
+            const amt = Number(prompt('Enter amount to mark as paid for selected members (GHS):', '0'));
+            if (!amt) return;
+            const now = Date.now();
+            const stmt = db.prepare('INSERT INTO contributions (member_id,amount,date,method,status,created_at) VALUES (?,?,?,?,?,?)');
+            ids.forEach(id => {
+                stmt.run(id, amt, now, 'cash', 'paid', now);
+                // reduce debt (ensure debt exists)
+                db.get('SELECT debt FROM members WHERE id=?', [id], (e, r) => {
+                    const cur = r && r.debt ? Number(r.debt) : 0;
+                    const newDebt = Math.max(0, cur - amt);
+                    db.run('UPDATE members SET debt=? WHERE id=?', [newDebt, id]);
+                });
+            });
+            stmt.finalize(() => { alert('Marked paid for selected'); loadList(); });
+        });
+
+        document.getElementById('bulkMarkUnpaid').addEventListener('click', () => {
+            if (!confirmAction('Add debt for selected members?')) return;
+            const ids = getSelectedIds();
+            if (!ids.length) return alert('Select members first');
+            const amt = Number(prompt('Enter amount to add to debt for selected members (GHS):', '0'));
+            if (!amt) return;
+            ids.forEach(id => {
+                db.get('SELECT debt FROM members WHERE id=?', [id], (e, r) => {
+                    const cur = r && r.debt ? Number(r.debt) : 0;
+                    db.run('UPDATE members SET debt=? WHERE id=?', [cur + amt, id]);
+                });
+            });
+            alert('Debt updated for selected'); loadList();
+        });
+
+        document.getElementById('refresh').addEventListener('click', () => loadList(document.getElementById('search').value));
+        document.getElementById('search').addEventListener('input', (e) => loadList(e.target.value));
+        document.getElementById('exportCsv').addEventListener('click', () => {
+            if (!confirmAction('Export members list to CSV?')) return;
+            db.all("SELECT id,full_name,staff_id,phone,debt FROM members ORDER BY full_name", [], (err, rows) => {
+                if (err) return alert('Failed to export');
+                const csv = ['id,full_name,staff_id,phone,debt', ...rows.map(r => `${r.id},"${r.full_name.replace(/"/g, '""')}",${r.staff_id || ''},${r.phone || ''},${r.debt || 0}`)].join('\n');
+                const out = path.join(__dirname, '..', 'data', 'reports', `members_export_${Date.now()}.csv`);
+                fs.mkdirSync(path.dirname(out), { recursive: true });
+                fs.writeFileSync(out, csv);
+                alert('CSV exported: ' + out);
+            });
+        });
+
+        // initial load
+        loadList();
+    </script>
+
+    <script>
+        function confirmAction(msg) {
+            return confirm(msg || 'Are you sure?');
+        }
+        function toast(msg) {
+            // simple toast
+            const el = document.createElement('div');
+            el.textContent = msg; el.style.position = 'fixed'; el.style.right = '20px'; el.style.bottom = '20px';
+            el.style.background = '#083'; el.style.color = '#fff'; el.style.padding = '10px 14px'; el.style.borderRadius = '6px'; el.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+    </script>
+
+    <script src="js/ui.js">
+// Export Member List to PDF (table-like)
+document.getElementById('exportPdf').addEventListener('click', async () => {
+  const ok = await swalConfirm('Export Member List', 'Generate a PDF of all members?');
+  if (!ok) return;
+  db.all("SELECT id,full_name,staff_id,phone,department,pay_mode,debt FROM members ORDER BY full_name", [], (err, rows) => {
+    if (err) { toast('Failed to load members', false); return; }
+    const PDFDocument = require('pdfkit');
+    const fs = require('fs'); const path = require('path');
+    const doc = new PDFDocument({margin:40, size:'A4'});
+    const outPath = path.join(__dirname, '..', 'data', 'reports', `members_list_${Date.now()}.pdf`);
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    const stream = fs.createWriteStream(outPath); doc.pipe(stream);
+    const logoPath = path.join(__dirname, '..', 'assets', 'logo.png'); if (fs.existsSync(logoPath)) doc.image(logoPath, 50, 20, {width:60});
+    doc.fontSize(14).text('Sunyani Municipal Assembly - Members List', 130, 30);
+    doc.moveDown(2);
+    // table header
+    const startY = 100; let y = startY;
+    doc.fontSize(10).text('No',50,y); doc.text('Full name',90,y); doc.text('Staff ID',300,y); doc.text('Phone',380,y); doc.text('Dept',450,y); doc.text('Debt',520,y);
+    y += 18;
+    let page = 1;
+    rows.forEach((r, idx) => {
+      if (y > 720) { // new page
+        doc.fontSize(9).text('Page ' + page, 50, 760, {align:'left'});
+        doc.addPage(); page++; y = 60;
+      }
+      doc.fontSize(10).text(String(idx+1),50,y); doc.text(r.full_name || '-',90,y, {width:200}); doc.text(r.staff_id||'-',300,y); doc.text(r.phone||'-',380,y); doc.text(r.department||'-',450,y); doc.text((r.debt||0).toFixed(2),520,y);
+      y += 16;
+    });
+    doc.fontSize(9).text('Page ' + page, 50, 760, {align:'left'});
+    doc.end();
+    stream.on('finish', ()=>{ toast('PDF exported: ' + outPath); const { shell } = require('electron'); shell.openPath(outPath); });
+  });
+});
+
+    </script>
+    <script src="libs/sweetalert2.min.js"></script>
+    <script src="libs/toastify.min.js"></script>
+    <script src="js/ui.js"></script>
+</body>
+</html>
